@@ -1,15 +1,16 @@
 use cc::Build;
-use std::{env, path::{Path, PathBuf}};
 use std::fs::File;
 use std::io::prelude::*;
-
-mod tusb_config;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 fn add_all_c_files_in_dir(build: &mut Build, path: impl AsRef<Path>) {
     for entry in glob::glob(path.as_ref().join("**/*.c").to_str().unwrap()).unwrap() {
         let path = entry.unwrap();
         if path.extension().and_then(|s| s.to_str()) == Some("c") {
-           build.file(&path);
+            build.file(&path);
         }
     }
 }
@@ -18,28 +19,40 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("Missing OUT_DIR"));
 
     {
-        let mut f = File::create(out_dir.join("tusb_config.h"))
-            .expect("Failed to create tusb_config.h");
-        f.write_all(tusb_config::generate_cfg().as_bytes())
+        // read tusb_config.h to bytes using file read
+        let mut conf = String::new();
+        File::open("tusb_config.h")
+            .expect("Failed to open tusb_config.h")
+            .read_to_string(&mut conf)
+            .expect("Failed to read tusb_config.h");
+
+        let mut f =
+            File::create(out_dir.join("tusb_config.h")).expect("Failed to create tusb_config.h");
+        f.write_all(conf.as_bytes())
             .expect("Failed to write to tusb_config.h");
     }
 
     let include_paths = String::from_utf8(
         Build::new()
-            .get_compiler().to_command()
-            .arg("-E").arg("-Wp,-v").arg("-xc").arg("/dev/null")
+            .get_compiler()
+            .to_command()
+            .arg("-E")
+            .arg("-Wp,-v")
+            .arg("-xc")
+            .arg("/dev/null")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
             .expect("Failed to run the compiler to get paths")
             .wait_with_output()
             .expect("Failed to run the compiler to get paths")
-            .stderr
-        ).unwrap()
+            .stderr,
+    )
+    .unwrap()
     .lines()
-        .filter_map(|line| line.strip_prefix(" "))
-        .map(|path| format!("-I{}", path))
-        .collect::<Vec<_>>();
+    .filter_map(|line| line.strip_prefix(" "))
+    .map(|path| format!("-I{}", path))
+    .collect::<Vec<_>>();
 
     eprintln!("include_paths={:?}", include_paths);
 
@@ -60,10 +73,10 @@ fn main() {
         .derive_default(true)
         .layout_tests(false)
         .use_core()
-        .rustfmt_bindings(true)
         .ctypes_prefix("cty")
         .clang_args(&vec![
-            "-target", &target,
+            "-target",
+            &target,
             "-fvisibility=default",
             "-fshort-enums",
         ])

@@ -1,1 +1,5 @@
 target/
+/result
+/.direnv
+/tinyusb
+/tusb_config.h
